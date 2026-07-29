@@ -95,6 +95,7 @@ const POLL_MS = 2000;
 let myId = null, myRole = null, myName = "";
 let latestState = null;
 let selected = null, hasAnswered = false, lastAnswerKey = null, wagerLocked = 0;
+let lastSeenRoundKey = undefined;
 let pendingSelected = null, pendingWager = 0;
 let view = "landing", joinError = "";
 let pollTimer = null;
@@ -114,7 +115,10 @@ function startPolling(){
     try{
       const s = await apiGet();
       const roundKey = s.activeCategory + "_" + (s.question ? s.question.text : "");
-      if(roundKey !== lastAnswerKey){ hasAnswered = false; selected = null; pendingSelected = null; pendingWager = 0; }
+      if(roundKey !== lastSeenRoundKey){
+        hasAnswered = false; selected = null; pendingSelected = null; pendingWager = 0;
+        lastSeenRoundKey = roundKey;
+      }
       latestState = s;
       render();
     }catch(e){ /* ignore transient network errors */ }
