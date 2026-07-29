@@ -131,7 +131,7 @@ function publicState(state){
 }
 
 export default async (req, context) => {
-  const store = getStore("wager-game");
+  const store = getStore({ name: "wager-game", consistency: "strong" });
   const headers = { "Content-Type": "application/json" };
 
   if (req.method === "GET") {
