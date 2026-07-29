@@ -1,0 +1,9 @@
+{
+  "name": "wager-of-wisdom-live",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@netlify/blobs": "^7.0.0"
+  }
+}
