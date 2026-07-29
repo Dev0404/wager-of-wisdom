@@ -95,6 +95,7 @@ const POLL_MS = 2000;
 let myId = null, myRole = null, myName = "";
 let latestState = null;
 let selected = null, hasAnswered = false, lastAnswerKey = null, wagerLocked = 0;
+let pendingSelected = null, pendingWager = 0;
 let view = "landing", joinError = "";
 let pollTimer = null;
 
@@ -113,7 +114,7 @@ function startPolling(){
     try{
       const s = await apiGet();
       const roundKey = s.activeCategory + "_" + (s.question ? s.question.text : "");
-      if(roundKey !== lastAnswerKey){ hasAnswered = false; selected = null; }
+      if(roundKey !== lastAnswerKey){ hasAnswered = false; selected = null; pendingSelected = null; pendingWager = 0; }
       latestState = s;
       render();
     }catch(e){ /* ignore transient network errors */ }
@@ -276,6 +277,7 @@ playerRoom: function(){
   }
 
   const cap = isBonus ? me.balance : Math.max(1, Math.floor(me.balance*0.5));
+  const clampedWager = Math.min(pendingWager, cap);
   const w = el(`
     <div>
       <div class="topbar"><span class="roundno">${s.activeCategory}</span></div>
@@ -284,29 +286,36 @@ playerRoom: function(){
         <span class="tag">${s.activeCategory}</span>
         <p class="statement">${q.text}</p>
         <div class="opt-col" id="optCol">
-          ${q.options.map((o,i)=>`<button class="opt-btn" data-i="${i}"><span class="letter">${LETTERS[i]}</span><span>${o}</span></button>`).join('')}
+          ${q.options.map((o,i)=>`<button class="opt-btn ${pendingSelected===i?'sel':''}" data-i="${i}"><span class="letter">${LETTERS[i]}</span><span>${o}</span></button>`).join('')}
         </div>
         <div class="wagerwrap">
           <label class="flabel">Wager (max ${cap})</label>
-          <input type="range" id="wagerSlide" min="0" max="${cap}" value="0">
-          <div class="wagerval" id="wagerDisplay">0</div>
+          <input type="range" id="wagerSlide" min="0" max="${cap}" value="${clampedWager}">
+          <div class="wagerval" id="wagerDisplay">${clampedWager}</div>
           <p class="cap-note">${isBonus? "Bonus round: you may wager your entire balance." : "Capped at 50% of your balance to keep you in the game."}</p>
         </div>
-        <button class="btn-primary" id="lockBtn" disabled>Lock In</button>
+        <button class="btn-primary" id="lockBtn" ${pendingSelected===null?'disabled':''}>Lock In</button>
       </div>
     </div>
   `);
   const optBtns = w.querySelectorAll('.opt-btn');
   optBtns.forEach(b=>{
-    b.onclick=()=>{ selected=parseInt(b.dataset.i,10); optBtns.forEach(x=>x.classList.remove('sel')); b.classList.add('sel'); lockBtn.disabled=false; };
+    b.onclick=()=>{
+      pendingSelected=parseInt(b.dataset.i,10);
+      optBtns.forEach(x=>x.classList.remove('sel'));
+      b.classList.add('sel');
+      lockBtn.disabled=false;
+    };
   });
   const slider=w.querySelector('#wagerSlide'), wagerDisplay=w.querySelector('#wagerDisplay');
-  slider.oninput=()=>{ wagerDisplay.textContent=slider.value; };
+  slider.oninput=()=>{ pendingWager = parseInt(slider.value,10); wagerDisplay.textContent=slider.value; };
   const lockBtn=w.querySelector('#lockBtn');
   lockBtn.onclick=async ()=>{
-    const wager = parseInt(slider.value||0,10);
-    await apiPost("submit_answer", { playerId: myId, selected, wager });
-    hasAnswered = true; wagerLocked = wager;
+    const wager = pendingWager;
+    const chosen = pendingSelected;
+    await apiPost("submit_answer", { playerId: myId, selected: chosen, wager });
+    selected = chosen; hasAnswered = true; wagerLocked = wager;
+    pendingSelected = null; pendingWager = 0;
     lastAnswerKey = s.activeCategory + "_" + (s.question ? s.question.text : "");
     render();
   };
@@ -335,6 +344,10 @@ function hostQuestionView(s){
           </div>
           <button class="btn-primary" id="nextBtn" style="margin-top:14px;">Back to Categories</button>
         `}
+      </div>
+      <div class="card" style="margin-top:14px;">
+        <p class="flabel" style="margin-bottom:10px;">Live Scores (${s.players.length} players)</p>
+        ${s.players.length? s.players.map(p=>`<div class="lb-row"><span class="nm">${p.name}</span><span class="pt">${p.balance}</span></div>`).join('') : '<p class="cap-note">No one has joined yet.</p>'}
       </div>
       <div class="hostnote">This is live on every joined phone within a couple of seconds.</div>
     </div>
